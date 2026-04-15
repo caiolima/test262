@@ -222,15 +222,31 @@ Files unchanged in bucket:
 
 Reuses `deferred-reexports` (already in `features.txt`). No new additions.
 
+## Build and lint order
+
+Linting requires the generated test files to exist (templates + `.case` files alone do not lint; the linter operates on the fully assembled test files under `test/`). So the development loop is:
+
+1. Edit `src/export-defer/**` (templates, `.case` files) and/or fixtures under `test/language/export/export-defer/evaluation-triggers/`.
+2. Run `./make.py` to regenerate tests into `test/language/export/export-defer/evaluation-triggers/`.
+3. Run the linter inside pyvenv: `python tools/lint/lint.py --exceptions lint.exceptions test/language/export/export-defer/evaluation-triggers/ src/export-defer/`.
+4. Run the harness self-tests.
+
+Never hand-edit the generated files; always round-trip through `./make.py`.
+
 ## Linting and test262 conventions
 
 - All fixture filenames end in `_FIXTURE.js` and do not use harness bindings.
 - Files end in a newline.
 - `includes` in flow style.
-- Lint command (inside pyvenv): `python tools/lint/lint.py --exceptions lint.exceptions test/language/export/export-defer/evaluation-triggers/ src/export-defer/`.
+- Lint command (inside pyvenv, after `./make.py`): `python tools/lint/lint.py --exceptions lint.exceptions test/language/export/export-defer/evaluation-triggers/ src/export-defer/`.
 
 ## PR assembly
 
-- `src/export-defer/**` (templates + `.case` files) is committed. Generated tests under `test/language/export/export-defer/evaluation-triggers/**` are NOT committed — per the convention noted in `CLAUDE.md` ("PRs should not include generated test outputs — they are built from `src/` after merge").
-- Fixture files (`*_FIXTURE.js`) under `test/language/export/export-defer/evaluation-triggers/` ARE committed (they are not generated).
-- Verification during development: run `./make.py` locally to generate, lint the output, run the harness self-tests.
+Commit structure (so the reviewer can see template and generated output separately):
+
+1. **Commit 1** — `src/export-defer/**` (templates + `.case` files) and the hand-written `*_FIXTURE.js` files under `test/language/export/export-defer/evaluation-triggers/`.
+2. **Commit 2** — the generated test files under `test/language/export/export-defer/evaluation-triggers/` (output of `./make.py`).
+
+This inverts the general test262 convention noted in `CLAUDE.md` ("PRs should not include generated test outputs — they are built from `src/` after merge"): for this PR we include the generated output in its own commit so reviewers can verify the matrix and the per-operation classifications without running `./make.py` themselves. Mention this explicitly in the PR description.
+
+Verification during development: run `./make.py` locally between template edits, lint the generated output, run the harness self-tests.
