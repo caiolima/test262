@@ -1,0 +1,15 @@
+// Copyright (C) 2026 Igalia, S.L. All rights reserved.
+// This code is governed by the BSD license found in the LICENSE file.
+
+/*---
+esid: sec-module-namespace-exotic-objects-isextensible
+desc: _ [[IsExtensible]]
+info: |
+  [[IsExtensible]] ( )
+    1. Return *false*.
+
+template: no-trigger
+---*/
+
+//- body
+Object.isExtensible(ns);

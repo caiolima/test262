@@ -1,0 +1,16 @@
+// Copyright (C) 2026 Igalia, S.L. All rights reserved.
+// This code is governed by the BSD license found in the LICENSE file.
+
+/*---
+esid: sec-module-namespace-exotic-objects-setprototypeof-v
+desc: _ [[SetPrototypeOf]]
+info: |
+  [[SetPrototypeOf]] ( _V_ )
+    1. Return ! SetImmutablePrototype(_O_, _V_).
+
+template: no-trigger
+---*/
+
+//- body
+Reflect.setPrototypeOf(ns, null);
+Reflect.setPrototypeOf(ns, {});
