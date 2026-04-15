@@ -149,44 +149,55 @@ All fixtures end in `_FIXTURE.js`, push to `globalThis.evaluations`, and do not 
 
 ## Per-operation classification
 
-The table below is this spec's **working classification**. Step 1 of the implementation plan is to verify each row against the `proposal-deferred-reexports` spec edits to the module-namespace-exotic-object internal methods, plus the clarifications in [issue #5010](https://github.com/tc39/test262/issues/5010) and its comments. If the spec verification reclassifies a row, the affected `.case` file's template mapping is adjusted (case → `trigger/` vs. `ignore/`) before generation. The set of `.case` files does not change.
+**Authoritative classification** (verified against <https://tc39.es/proposal-deferred-reexports/> and its base <https://tc39.es/proposal-defer-import-eval/> on 2026-04-15).
 
-**Rows that warrant extra care during verification** (because the baseline ECMA-262 module-namespace algorithm does not obviously reach `[[Get]]`, yet we classify them as triggers):
+Key spec facts used to derive the table:
 
-- `[[Delete]]` on a deferred-exported name — baseline `[[Delete]]` returns `false` when the name is in `[[Exports]]` without calling `[[GetOwnProperty]]`. Classified as `trigger` per the brainstorm discussion; confirm the proposal amends this path (or otherwise reclassify to `ignore`).
-- `[[DefineOwnProperty]]` on a deferred-exported name — routes through `[[GetOwnProperty]]` → `[[Get]]`, so this should trigger; verify no proposal-level short-circuit was added.
+- The `proposal-deferred-reexports` spec edits **only** `[[Get]]` (§10.4.6.8). It inserts a new step after step 4: *"If `m` is a Cyclic Module Record and `m.GetOptionalIndirectExportsModuleRequests(« P »)` is not empty, then Perform `? EvaluateModuleSync(m, « P »)`."* This is the sole insertion point of `EvaluateModuleSync` in the module-namespace internal methods for a deferred re-export.
+- The namespace over the barrel (`ns` in our tests) is an **ordinary** namespace, created via `import * as ns from "./barrel.js"`. Therefore `ns.[[Deferred]]` is **false** (set by `ModuleNamespaceCreate` when `phase` is `evaluation`; see proposal-defer-import-eval §10.4.6.12).
+- Because `ns.[[Deferred]]` is false: (a) `IsSymbolLikeNamespaceKey(P, ns)` (proposal-defer-import-eval §10.4.6.13) returns false for every String `P`, including `"then"`; and (b) `GetModuleExportsList(ns)` (proposal-defer-import-eval §10.4.6.14) returns `ns.[[Exports]]` immediately (its evaluation branch is gated on `[[Deferred]] = true`).
+- `[[GetOwnProperty]]` (§10.4.6.5) step 4 performs `? O.[[Get]](P, O)` when the name is in `[[Exports]]`. So any operation that routes through `[[GetOwnProperty]]` for a deferred-reexported name transitively reaches the `[[Get]]` insertion above.
+- `[[DefineOwnProperty]]` (§10.4.6.6) step 2 performs `? O.[[GetOwnProperty]](P)` when the key is an exported string, routing to `[[Get]]`.
+- `[[Delete]]` (§10.4.6.10) does **not** call `[[GetOwnProperty]]` or `[[Get]]`: after the `IsSymbolLikeNamespaceKey` short-circuit, it consults `GetModuleExportsList` and returns `false` without touching the binding. For the barrel's ordinary namespace, `GetModuleExportsList` is itself a no-op (see above). Therefore `[[Delete]]` of a deferred-reexported name does **not** trigger `EvaluateModuleSync`.
+- `[[HasProperty]]`, `[[OwnPropertyKeys]]`, `[[Set]]`, `[[GetPrototypeOf]]`, `[[SetPrototypeOf]]`, `[[IsExtensible]]`, `[[PreventExtensions]]`, and symbol-key access all either short-circuit before consulting `ResolveExport`/`[[Get]]`, return an ordinary primitive, or go through `GetModuleExportsList` which is a no-op for an ordinary namespace.
 
 Every operation is applied with the namespace `ns` as the target. The "deferred-exported name" column is the behavior when the property key is `"exported"` (a deferred re-exported name); the "other" column is for symbol keys, non-exported string keys, and the like.
 
 **`trigger/` bucket — triggers `EvaluateModuleSync` on `dep`:**
 
-| Operation | Surface syntax | Why it triggers |
-|-----------|----------------|-----------------|
-| `[[Get]]` (exported key) | `ns.exported`, `ns[key]` | Spec calls `EvaluateModuleSync` when `[[Deferred]]` is set on the binding. |
-| `[[Get]]` via prototype | `Object.create(ns).exported` | Still routes through `ns`'s `[[Get]]`. |
-| `[[Get]]` via super | `class C { m() { return super.x } }` with `C.prototype.__proto__ = ns` | Same trap. |
-| `[[Get]]` of `"then"` when exported | `ns.then` where barrel has `export defer { then } from ...` | `then` being an exported string name overrides the symbol-like short-circuit; routes to the exports path. |
-| `[[GetOwnProperty]]` (exported key) | `Object.getOwnPropertyDescriptor(ns, "exported")` | Populates `[[Value]]` via `[[Get]]`. |
-| `[[DefineOwnProperty]]` (exported key) | `Object.defineProperty(ns, "exported", desc)` | Validates `desc` against current descriptor via `[[GetOwnProperty]]`. |
-| `[[Delete]]` (exported key) | `delete ns.exported` | Resolves binding via `[[GetOwnProperty]]` before returning `false`. |
+| Operation | Surface syntax | Spec citation | Why it triggers |
+|-----------|----------------|---------------|-----------------|
+| `[[Get]]` (exported key) | `ns.exported`, `ns[key]` | proposal-deferred-reexports §10.4.6.8, step 5 (the `GetOptionalIndirectExportsModuleRequests` → `EvaluateModuleSync` insertion) | Direct call to `EvaluateModuleSync(m, « P »)`. |
+| `[[Get]]` via prototype | `Object.create(ns).exported` | §10.4.6.8 step 5 (same trap) | `OrdinaryGet` on the child walks the prototype chain and reaches `ns.[[Get]]`. |
+| `[[Get]]` via super | `class C { m() { return super.x } }` with `C.prototype.__proto__ = ns` | §10.4.6.8 step 5 (same trap) | Super-property access routes to `ns.[[Get]]` with adjusted receiver. |
+| `[[Get]]` of `"then"` when exported | `ns.then` where barrel has `export defer { then } from ...` | §10.4.6.8 step 5; proposal-defer-import-eval §10.4.6.13 step 2 (short-circuit gated on `[[Deferred]] = true`) | `ns` is an ordinary namespace (`[[Deferred]]` false), so `IsSymbolLikeNamespaceKey("then", ns)` returns false and `"then"` flows to the exports-list path. |
+| `[[GetOwnProperty]]` (exported key) | `Object.getOwnPropertyDescriptor(ns, "exported")` | proposal-defer-import-eval §10.4.6.5 step 4 (`? O.[[Get]](P, O)`) → §10.4.6.8 step 5 | Descriptor's `[[Value]]` is populated via `[[Get]]`. |
+| `[[DefineOwnProperty]]` (exported key) | `Object.defineProperty(ns, "exported", desc)` | proposal-defer-import-eval §10.4.6.6 step 2 (`? O.[[GetOwnProperty]](P)`) → §10.4.6.5 step 4 → §10.4.6.8 step 5 | Validation against current descriptor forces `[[GetOwnProperty]]` → `[[Get]]`. The proposal-defer-import-eval editorial note on §10.4.6.6 step 3 confirms: *"If `O.[[Deferred]]` is true, the step above will ensure that the module is evaluated"* — the same wiring applies to a deferred re-export through `GetOptionalIndirectExportsModuleRequests`. |
 
 **`ignore/` bucket — does NOT trigger evaluation:**
 
-| Operation | Surface syntax | Why it does not trigger |
-|-----------|----------------|-----------------|
-| `[[HasProperty]]` (any key) | `"exported" in ns`, `"notExported" in ns` | Resolved against the link-time export list. |
-| `[[OwnPropertyKeys]]` | `Reflect.ownKeys(ns)`, `Object.getOwnPropertyNames(ns)`, `Object.getOwnPropertySymbols(ns)` | Export list is populated at link time. |
-| `[[Set]]` (any key, exported or not) | `ns.exported = 1`, `ns.notExported = 1` | Module namespace `[[Set]]` returns `false` unconditionally; never consults the exports list. |
-| Super-property `[[Set]]` of exported | `super.exported = 1` with `ns` as home prototype | Same — routes to `[[Set]]` which returns `false`. |
-| Symbol key access (other) | `ns[Symbol.iterator]` | `IsSymbolLikeNamespaceKey` short-circuits on symbols. |
-| `Symbol.toStringTag` | `ns[Symbol.toStringTag]` | Same short-circuit. |
-| `[[Get]]` of `"then"` NOT exported | `ns.then` where `then` is not exported | Short-circuits via the "not in exports list" path — never reaches `EvaluateModuleSync`. |
-| Any op on a not-exported name | `ns.notExported`, `Object.getOwnPropertyDescriptor(ns, "notExported")`, `delete ns.notExported`, `Object.defineProperty(ns, "notExported", …)` | Name is not in the exports list; operation short-circuits before evaluation. |
-| `[[GetPrototypeOf]]` | `Object.getPrototypeOf(ns)` | Returns `null` without touching exports. |
-| `[[SetPrototypeOf]]` | `Object.setPrototypeOf(ns, null)` / non-null | Returns `true` for `null`, `false` otherwise — no exports-list consultation. |
-| `[[IsExtensible]]` | `Reflect.isExtensible(ns)` | Returns `false`. |
-| `[[PreventExtensions]]` | `Object.preventExtensions(ns)` | Already non-extensible. |
-| Private-name access | `#x in ns` (where feasible) | Short-circuits. |
+| Operation | Surface syntax | Spec citation | Why it does not trigger |
+|-----------|----------------|---------------|-------------------------|
+| `[[HasProperty]]` (any key) | `"exported" in ns`, `"notExported" in ns` | proposal-defer-import-eval §10.4.6.7 | Consults `GetModuleExportsList(O)` (no-op for ordinary `ns`) and the exports list; never calls `EvaluateModuleSync`. |
+| `[[OwnPropertyKeys]]` | `Reflect.ownKeys(ns)`, `Object.getOwnPropertyNames(ns)`, `Object.getOwnPropertySymbols(ns)` | proposal-defer-import-eval §10.4.6.11 | Returns `GetModuleExportsList(O)` concatenated with symbol keys; `GetModuleExportsList` is a no-op for ordinary `ns`. |
+| `[[Set]]` (any key, exported or not) | `ns.exported = 1`, `ns.notExported = 1` | proposal-defer-import-eval §10.4.6.9 | Single step: `Return false`. Never consults exports or `[[Get]]`. |
+| Super-property `[[Set]]` of exported | `super.exported = 1` with `ns` as home prototype | §10.4.6.9 | Same — routes to `[[Set]]` which returns `false`. |
+| `[[Delete]]` (exported key) | `delete ns.exported` | proposal-defer-import-eval §10.4.6.10 | Step 1 `IsSymbolLikeNamespaceKey` is false for string `"exported"` on an ordinary namespace; step 2 `GetModuleExportsList` is a no-op; step 3 returns `false` since `"exported"` is in `ns.[[Exports]]`. **No call to `[[GetOwnProperty]]` or `[[Get]]`.** |
+| Symbol key access (other) | `ns[Symbol.iterator]` | proposal-defer-import-eval §10.4.6.13 step 1 | `IsSymbolLikeNamespaceKey` returns true for any Symbol; traps short-circuit to `Ordinary*`. |
+| `Symbol.toStringTag` | `ns[Symbol.toStringTag]` | §10.4.6.13 step 1 + §10.4.6.12 (last step creates a data property) | Short-circuits to `OrdinaryGet`, which reads the own data property installed at namespace creation. |
+| `[[Get]]` of `"then"` NOT exported | `ns.then` where `then` is not exported | proposal-deferred-reexports §10.4.6.8 step 3 (`If exports does not contain P, return undefined.`) | `"then"` not in exports → early return before reaching step 5. |
+| Any op on a not-exported name | `ns.notExported`, `Object.getOwnPropertyDescriptor(ns, "notExported")`, `delete ns.notExported`, `Object.defineProperty(ns, "notExported", …)` | §10.4.6.5 step 3; §10.4.6.8 step 3; §10.4.6.10 step 3 (which returns `true` when not in exports, without side effects) | Name not in exports → each trap short-circuits before reaching the `EvaluateModuleSync` insertion in `[[Get]]`. |
+| `[[GetPrototypeOf]]` | `Object.getPrototypeOf(ns)` | ECMA-262 §10.4.6.1 | Unchanged by the proposal; returns `null`. |
+| `[[SetPrototypeOf]]` | `Object.setPrototypeOf(ns, null)` / non-null | ECMA-262 §10.4.6.2 | Unchanged; `SetImmutablePrototype` — no exports consultation. |
+| `[[IsExtensible]]` | `Reflect.isExtensible(ns)` | ECMA-262 §10.4.6.3 | Unchanged; returns `false`. |
+| `[[PreventExtensions]]` | `Object.preventExtensions(ns)` | ECMA-262 §10.4.6.4 | Unchanged; returns `true`. |
+| Private-name access | `#x in ns` (where feasible) | N/A (private brand check on `ns` fails before any namespace trap runs) | Short-circuits. |
+
+### Change from the pre-verification working classification
+
+- `[[Delete]]` on a deferred-reexported name was working-classified as `trigger` with a caveat. Spec verification reclassifies it to `ignore`: proposal-defer-import-eval §10.4.6.10 does not call `[[GetOwnProperty]]` or `[[Get]]`, and the deferred-reexports proposal does not edit `[[Delete]]`. The `delete.case` file must therefore be mapped to `ignore/ignore-on-possible-export/string-exported.template` (not to `trigger-on-possible-export`).
+- `[[DefineOwnProperty]]` on a deferred-reexported name is confirmed as `trigger`: the base chain `[[DefineOwnProperty]]` step 2 → `[[GetOwnProperty]]` step 4 → `[[Get]]` — combined with the deferred-reexports edit to `[[Get]]` — forces evaluation. No proposal-level short-circuit was added.
+- All other rows stand.
 
 ### `then` special-case pair
 
@@ -200,13 +211,13 @@ Two dedicated test pairs — both necessary because the "symbol-like key" short-
 Roughly the same set the `import-defer` side produces, reshuffled per the buckets above. Final names come from template `path:` + case base-name. Rough count: ~25 generated files in `test/language/export/export-defer/evaluation-triggers/`, plus the 5 fixture files.
 
 Files that were `ignore-*` for `import-defer` but become `trigger-*` here:
-- `getOwnProperty`, `defineOwnProperty`, `delete` when the key is exported.
+- `getOwnProperty`, `defineOwnProperty` when the key is exported.
 
 Files that were `trigger-*` for `import-defer` but become `ignore-*` here:
 - `hasProperty`, `hasProperty-in-prototype`, `ownPropertyKeys`, `ownPropertyKey-names`.
 
 Files unchanged in bucket:
-- Symbol keys, `set-*`, `getPrototypeOf`, `setPrototypeOf`, `isExtensible`, `preventExtensions`, private-name-access → remain in `ignore`.
+- Symbol keys, `set-*`, `getPrototypeOf`, `setPrototypeOf`, `isExtensible`, `preventExtensions`, private-name-access, `delete` → remain in `ignore`. (`delete.case` stays in the `ignore` bucket because proposal-defer-import-eval §10.4.6.10 does not reach `[[GetOwnProperty]]`/`[[Get]]` and the deferred-reexports proposal does not edit `[[Delete]]`.)
 - `get`, `get-in-prototype`, `super-get`, `then-exported-get` → remain in `trigger`.
 
 ## Frontmatter conventions
