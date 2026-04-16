@@ -8,7 +8,7 @@ features: [export-defer]
 flags: [generated, module]
 includes: [compareArray.js]
 info: |
-    [[Get]] ( _P_, _Receiver_ ) — proposal-deferred-reexports amendment
+    [[Get]] ( _P_, _Receiver_ )
       1. If _P_ is a Symbol, return OrdinaryGet(_O_, _P_, _Receiver_).
       1. Let _exports_ be _O_.[[Exports]].
       1. If _exports_ does not contain _P_, return *undefined*.
