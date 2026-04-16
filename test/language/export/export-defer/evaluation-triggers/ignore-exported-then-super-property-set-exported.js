@@ -4,7 +4,7 @@
 /*---
 description: _ [[Set]] called on super access (of "then" when it is a deferred-reexported name, does not trigger evaluation)
 esid: sec-module-namespace-exotic-objects
-features: [deferred-reexports]
+features: [export-defer]
 flags: [generated, module]
 includes: [compareArray.js]
 info: |

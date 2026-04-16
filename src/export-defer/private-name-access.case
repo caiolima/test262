@@ -20,7 +20,7 @@ info: |
       ...
 
 template: no-trigger
-features: [deferred-reexports, nonextensible-applies-to-private]
+features: [export-defer, nonextensible-applies-to-private]
 ---*/
 
 //- body

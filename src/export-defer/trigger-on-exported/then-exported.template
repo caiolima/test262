@@ -20,7 +20,7 @@ info: |
     GetOptionalIndirectExportsModuleRequests check for the given name.
 
 flags: [module]
-features: [deferred-reexports]
+features: [export-defer]
 includes: [compareArray.js]
 ---*/
 

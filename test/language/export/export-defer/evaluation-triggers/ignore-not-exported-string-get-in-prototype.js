@@ -4,7 +4,7 @@
 /*---
 description: _ [[Get]] when namespace object is in the prototype chain (of a string that is not a deferred-reexported name, does not trigger evaluation)
 esid: sec-module-namespace-exotic-objects
-features: [deferred-reexports]
+features: [export-defer]
 flags: [generated, module]
 includes: [compareArray.js]
 info: |

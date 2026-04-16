@@ -4,7 +4,7 @@
 /*---
 description: _ [[Get]] (of a string that is a deferred-reexported name, triggers evaluation)
 esid: sec-module-namespace-exotic-objects
-features: [deferred-reexports]
+features: [export-defer]
 flags: [generated, module]
 includes: [compareArray.js]
 info: |

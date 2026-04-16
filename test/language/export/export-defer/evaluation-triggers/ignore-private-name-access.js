@@ -4,7 +4,7 @@
 /*---
 description: PrivateGet and PrivateSet in a namespace object (does not trigger evaluation)
 esid: sec-module-namespace-exotic-objects
-features: [deferred-reexports, nonextensible-applies-to-private]
+features: [export-defer, nonextensible-applies-to-private]
 flags: [generated, module]
 includes: [compareArray.js]
 info: |

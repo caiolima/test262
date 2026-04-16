@@ -20,7 +20,7 @@ info: |
     trigger. The deferred source is not evaluated.
 
 flags: [module]
-features: [deferred-reexports]
+features: [export-defer]
 includes: [compareArray.js]
 ---*/
 
