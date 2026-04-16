@@ -1,20 +1,26 @@
 // This file was procedurally generated from the following sources:
 // - src/export-defer/super-property-set-exported.case
-// - src/export-defer/no-trigger-on-exported/symbol-toStringTag.template
+// - src/export-defer/trigger-on-exported/symbol-toStringTag.template
 /*---
-description: _ [[Set]] called on super access (of @@toStringTag, does not trigger evaluation)
+description: _ [[GetOwnProperty]] called on super access (of @@toStringTag, does not trigger evaluation)
 esid: sec-module-namespace-exotic-objects
 features: [export-defer]
 flags: [generated, module]
 includes: [compareArray.js]
 info: |
-    EvaluateModuleSync is only inserted into [[Get]] by this proposal.
-    Operations that do not route through [[Get]] do not reach it,
-    even for a deferred-reexported name.
+    [[Get]] ( _P_, _Receiver_ ) — proposal-deferred-reexports amendment
+      1. If _P_ is a Symbol, return OrdinaryGet(_O_, _P_, _Receiver_).
+      1. Let _exports_ be _O_.[[Exports]].
+      1. If _exports_ does not contain _P_, return *undefined*.
+      1. Let _m_ be _O_.[[Module]].
+      1. If _m_ is a Cyclic Module Record and _m_.GetOptionalIndirectExportsModuleRequests(« _P_ ») is not empty, then
+        1. Perform ? EvaluateModuleSync(_m_, « _P_ »).
+      1. ...
 
+      The key is a Symbol (@@toStringTag), so [[Get]] short-circuits at
+      step 1 and delegates to OrdinaryGet before reaching the evaluation
+      trigger. The deferred source is not evaluated.
 
-    [[Set]] ( _P_, _V_, _Receiver_ )
-      1. Return *false*.
 
     SuperProperty : super [ Expression ]
       1. Let _env_ be GetThisEnvironment().
@@ -42,6 +48,24 @@ info: |
         1. Return ~unused~.
       ...
 
+    OrdinarySetWithOwnDescriptor ( _O_, _P_, _V_, _Receiver_, _ownDesc_ )
+      1. If _ownDesc_ is *undefined*, then
+        1. Let _parent_ be ? _O_.[[GetPrototypeOf]]().
+        1. If _parent_ is not *null*, return ? _parent_.[[Set]](_P_, _V_, _Receiver_).
+        1. Set _ownDesc_ to the PropertyDescriptor { [[Value]]: *undefined*, [[Writable]]: *true*, [[Enumerable]]: *true*, [[Configurable]]: *true* }.
+      1. If IsDataDescriptor(_ownDesc_) is *true*, then
+        1. If _ownDesc_.[[Writable]] is *false*, return *false*.
+        1. If _Receiver_ is not an Object, return *false*.
+        1. Let _existingDescriptor_ be ? _Receiver_.[[GetOwnProperty]](_P_).
+        1. If _existingDescriptor_ is *undefined*, then
+          1. Assert: _Receiver_ does not currently have a property _P_.
+          1. Return ? CreateDataProperty(_Receiver_, _P_, _V_).
+        1. If IsAccessorDescriptor(_existingDescriptor_) is *true*, return *false*.
+        1. If _existingDescriptor_.[[Writable]] is *false*, return *false*.
+        1. Let _valueDesc_ be the PropertyDescriptor { [[Value]]: _V_ }.
+        1. Return ? _Receiver_.[[DefineOwnProperty]](_P_, _valueDesc_).
+      ...
+
 ---*/
 
 
@@ -67,4 +91,4 @@ try {
 } catch (_) {}
 
 assert.compareArray(globalThis.evaluations, ["barrel"],
-  "operation does not route through [[Get]], so deferred source is not evaluated");
+  "operation with @@toStringTag does not trigger deferred-source evaluation");

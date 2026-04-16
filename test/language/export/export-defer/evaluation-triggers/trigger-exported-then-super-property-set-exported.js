@@ -1,8 +1,8 @@
 // This file was procedurally generated from the following sources:
 // - src/export-defer/super-property-set-exported.case
-// - src/export-defer/trigger-on-exported/then-not-exported.template
+// - src/export-defer/trigger-on-exported/then-exported.template
 /*---
-description: _ [[GetOwnProperty]] called on super access (of "then" when it is not a deferred-reexported name, does not trigger evaluation)
+description: _ [[GetOwnProperty]] called on super access (of "then" when it is a deferred-reexported name, triggers evaluation)
 esid: sec-module-namespace-exotic-objects
 features: [export-defer]
 flags: [generated, module]
@@ -17,10 +17,9 @@ info: |
         1. Perform ? EvaluateModuleSync(_m_, « _P_ »).
       1. ...
 
-      The name "then" is not in [[Exports]] of this barrel, so [[Get]]
-      short-circuits at step 3 before reaching the
-      GetOptionalIndirectExportsModuleRequests check. The deferred source
-      is not evaluated.
+      The namespace is an ordinary module namespace (not deferred), so
+      [[Deferred]] is false. The trigger is inside [[Get]] at the
+      GetOptionalIndirectExportsModuleRequests check for the given name.
 
 
     SuperProperty : super [ Expression ]
@@ -72,7 +71,7 @@ info: |
 
 import "./setup_FIXTURE.js";
 
-import * as ns from "./barrel_FIXTURE.js";
+import * as ns from "./barrel-then_FIXTURE.js";
 
 assert.compareArray(globalThis.evaluations, ["barrel"],
   "barrel evaluated eagerly; deferred source not yet evaluated");
@@ -91,5 +90,5 @@ try {
   new B();
 } catch (_) {}
 
-assert.compareArray(globalThis.evaluations, ["barrel"],
-  "operation on non-exported 'then' does not trigger deferred-source evaluation");
+assert.compareArray(globalThis.evaluations, ["barrel", "dep"],
+  "operation on deferred-reexported 'then' triggers source evaluation");
