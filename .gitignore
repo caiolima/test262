@@ -18,3 +18,7 @@ npm-shrinkwrap.json
 
 # Created by automated tests
 tools/web-features/test/out/
+
+# Local agent artifacts
+.worktrees/
+.scratch/
